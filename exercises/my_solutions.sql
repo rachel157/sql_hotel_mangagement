@@ -556,11 +556,119 @@ order by 1
 Danh sách nhân viên kèm tên chức vụ.  
 *Output:* `id, fullname, role_name`
 */
+select p.id, fullname, role_name
+from employees p join roles r on p.role_id = r.id
+
+/* 
+**Bài 52 — Chi tiết booking**  
+Bảng điều phối lễ tân: mỗi booking hiển thị tên khách, tên phòng, nhân viên tạo booking, ngày nhận/trả phòng.  
+*Output:* `booking_id, khach, phong, nhan_vien, date_start, date_end`
+*/
+select b.id as booking_id, c.fullname as khach, r.room_name as phong, e.fullname as nhan_vien, date_start, date_end
+from bookings b join employees e on b.employee_id = e.id
+				join customers c on b.customer_id = c.id
+				join rooms r on r.id = b.room_id
+ORDER BY b.date_start
+
+/* 
+**Bài 53 — Sơ đồ phòng**  
+Mỗi phòng kèm hạng phòng (từ room_types) và trạng thái hiện tại (từ room_status).  
+*Output:* `room_name, hang_phong, loai_phong, trang_thai`
+*/
+select room_name, rty.details as hang_phong, rst.details as trang_thai
+from rooms r
+join room_status rst on r.room_status = rst.id
+join room_types rty on r.roomtype_id = rty.id	
+
+/* 
+**Bài 54 — Khách VIP**  
+Danh sách khách thuộc loại 'Khách VIP' để chăm sóc đặc biệt.  
+*Output:* `id, fullname, phone, loai_khach`
+*/
+select c.id, c.fullname, ct.details
+from customers c
+join customer_types ct on c.customer_type = ct.id
+where ct.details like '%VIP%'
+
+/* 
+**Bài 55 — Số booking của mọi khách**  
+Liệt kê TẤT CẢ khách hàng và số booking của họ (khách chưa đặt lần nào hiển thị 0).  
+*Output:* `id, fullname, so_booking`
+*/
+select c.id, c.fullname, count(c.id) as so_booking
+from customers c
+join bookings b on b.customer_id = c.id
+group by c.id
+order by so_booking desc,c.id
+
+/* 
+**Bài 56 — Khách chưa từng đặt phòng**  
+Marketing muốn gửi ưu đãi lần đầu cho khách có hồ sơ nhưng chưa từng booking.  
+*Output:* `id, fullname, email`
+*/
+select c.id, c.fullname, c.email
+from customers c
+left join bookings b on b.customer_id = c.id
+where b.id is null
+
+/* 
+**Bài 57 — Phòng chưa từng có khách**  
+Phòng nào chưa từng được đặt? (cần kiểm tra vị trí / giá)  
+*Output:* `id, room_name, price`
+*/
+select r.id,r.room_name,r.price
+from bookings b
+right join rooms r on b.room_id=r.id
+where b.id is null
+ORDER BY r.price DESC
+
+/* 
+**Bài 58 — Lệch trạng thái tài khoản**  
+Audit IT: nhân viên đang làm việc (is_active = true) nhưng tài khoản hệ thống bị khóa, và ngược lại nhân viên đã nghỉ mà tài khoản vẫn mở.  
+*Output:* `username, fullname, nv_active, tk_active, van_de`
+*/
+select a.username, e.fullname, e.is_active as nv_active, a.is_active as tk_active,
+	case when e.is_active and not a.is_active then 'nhan vien dang lam nhung tai khoan bi khoa'
+											  else 'nhan vien nghi lam nhung tai khoan van hoat dong'
+											  end as van_de
+from employees e 
+join accounts a on a.employee_id = e.id
+where e.is_active <> a.is_active
+
+/* 
+**Bài 59 — Ma trận phân quyền**  
+Báo cáo phân quyền: username, họ tên, chức vụ, quyền được cấp.  
+*Output:* `username, fullname, role_name, permission`
+*/
+select a.username,fullname,role_name, au.permission
+from employees e
+join roles r on e.role_id = r.id
+join accounts a on a.employee_id = e.id
+join authorities au on a.username = au.username
+ORDER BY au.permission, a.username
+
+/* 
+**Bài 60 — Mặt hàng chưa từng nhập**  
+Mặt hàng có trong danh mục nhưng chưa có phiếu nhập kho nào.  
+*Output:* `service_code, name_service`
+*/
+select service_code, name_service
+from service_details sd
+left join inventory_receiving ir on sd.id = ir.servicedetails_id
+where ir.id is null
+
+/* 
+**Bài 61 — Xuất kho không có nhập**  
+Đối soát kho: mặt hàng đã có phiếu xuất nhưng chưa từng có phiếu nhập (nghi sai sót).  
+*Output:* `service_code, name_service, tong_xuat`
+*/
+select service_code, name_service, sum(idl.quantity) as tong_xuat
+from service_details sd
+join inventory_delivery idl on idl.servicedetails_id = sd.id
+where not exists (select 1 from inventory_receiving ir where ir.servicedetails_id = sd.id)
+group by service_code, name_service
 
 
-
-
-	
 
 	
 
