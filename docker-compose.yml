@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: hotel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hotel
+      POSTGRES_PASSWORD: hotel123
+      POSTGRES_DB: hotelmanagement
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "5432:5432"
+    volumes:
+      # Các file *.sql trong init/ tự chạy theo thứ tự tên khi volume data còn trống
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotel -d hotelmanagement"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:
