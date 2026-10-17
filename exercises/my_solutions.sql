@@ -668,7 +668,361 @@ join inventory_delivery idl on idl.servicedetails_id = sd.id
 where not exists (select 1 from inventory_receiving ir where ir.servicedetails_id = sd.id)
 group by service_code, name_service
 
+/* 
+**Bài 62 — Tiền dịch vụ mỗi hóa đơn**  
+Tính tổng tiền dịch vụ (số lượng × giá bán) của từng hóa đơn.  
+*Output:* `invoices_id, so_dong, tien_dich_vu`
+*/
+select invoices_id, count(*) as so_dong, sum(ide.quantity*sd.price) as tien_dich_vu
+from invoices i
+join invoice_details ide on ide.invoices_id = i.id
+join service_details sd on sd.id = ide.servicedetails_id
+group by invoices_id
+order by tien_dich_vu desc
 
+/* 
+**Bài 63 — Hóa đơn đầy đủ**  
+In danh sách hóa đơn: mã HĐ, ngày xuất, tên khách, phòng, phương thức thanh toán, thu ngân.  
+*Output:* `invoice_id, issue_date, khach, phong, phuong_thuc, thu_ngan`
+*/
+select i.id as invoice_id, i.issue_date, c.fullname as khách,r.room_name as phòng, 
+	split_part(p.payment_details, '-',1) as "phương thức thanh toán", e.fullname as "thu ngân"
+from invoices i
+join bookings b on i.booking_id = b.id
+join customers c on c.id = b.customer_id
+join rooms r on b.room_id = r.id
+join payments p on i.payment_id = p.id
+join employees e on i.employee_id = e.id
+ORDER BY i.issue_date;
+
+/* 
+**Bài 64 — Gọi trả đồ thất lạc**  
+Với đồ còn 'Đang giữ': tên món, tên & SĐT khách để gọi, nhân viên đã nhặt được.  
+*Output:* `item_name, khach, sdt_khach, nv_nhat`
+*/
+select item_name, c.fullname as khach, c.phone as sdt_khach, e.fullname as nv_nhat
+from lost_items li
+join customers c on li.customer_id = c.id
+join employees e on li.employee_id = e.id 
+where li.status = 'Đang giữ'
+
+/* 
+**Bài 65 — Voucher áp sai thời hạn**  
+Kiểm soát nội bộ: booking áp voucher nhưng ngày đặt nằm ngoài thời gian hiệu lực của voucher.  
+*Output:* `booking_id, date_booking, voucher_code, date_start, date_end`
+*/
+select b.id as booking_id, date_booking, voucher_code, v.date_start, v.date_end
+from bookings b
+join vouchers v on b.vouchers_id = v.id
+where b.date_booking < v.date_start or b.date_booking > v.date_end
+
+/* 
+**Bài 66 — Phát hiện overbooking (SELF JOIN)**  
+Tìm các cặp booking cùng phòng có khoảng lưu trú chồng lấn nhau.  
+*Output:* `room_id, booking_1, booking_2, start_1, end_1, start_2, end_2`
+*/
+select b1.room_id, b1.id as booking_1, b2.id as booking_2, b1.date_start as start_1, b1.date_end as end_1, b2.date_start as start_2, b2.date_end as end_2
+from bookings b1 
+join bookings b2 on b1.room_id = b2.room_id
+				and b1.id < b2.id
+				and b1.date_start < b2.date_end
+				and b2.date_start < b1.date_end
+
+/* 
+**Bài 67 — Công suất phòng theo ngày (JOIN điều kiện khoảng)**  
+Với mỗi ngày của tháng 08/2025, đếm số phòng có khách lưu trú qua đêm đó (ngày nào không có khách vẫn hiển thị 0).  
+*Output:* `ngay, so_phong_co_khach`
+*/
+select d::date, count (distinct(b.room_id)) as so_phong_co_khach
+from generate_series(date'2025-08-01', date'2025-08-31', interval '1 day') d
+left join bookings b on d::date >= b.date_start::date and d::date < b.date_end::date
+GROUP BY d
+ORDER BY d;
+
+/* 
+**Bài 68 — Đối soát nhập–xuất (FULL OUTER JOIN)**  
+Theo từng mặt hàng: tổng nhập, tổng xuất, chênh lệch. Phải hiện cả mặt hàng chỉ có nhập hoặc chỉ có xuất.  
+*Output:* `servicedetails_id, tong_nhap, tong_xuat, chenh_lech`
+*/
+select 
+	coalesce(x.sid, n.sid) as servicedetails_id,
+	coalesce(n.tong_nhap, 0) as tong_nhap,
+	coalesce(x.tong_xuat, 0) as tong_xuat,
+	coalesce(n.tong_nhap, 0) - coalesce(x.tong_xuat, 0) as chenh_lech
+from (select servicedetails_id as sid ,sum(quantity) as tong_xuat from inventory_delivery group by 1) x
+full outer join (select servicedetails_id as sid,sum(quantity) tong_nhap from inventory_receiving group by 1) n
+on x.sid = n.sid
+ORDER BY 1;
+
+/* 
+**Bài 69 — Hóa đơn chỉ có tiền phòng**  
+Hóa đơn nào không phát sinh dòng dịch vụ nào?  
+*Output:* `invoice_id, booking_id, issue_date`
+*/
+select i.id as invoice_id, i.booking_id, i.issue_date
+from invoices i 
+left join invoice_details ide
+on i.id = ide.invoices_id
+where ide.id is null
+
+/* 
+**Bài 70 — Tiền dịch vụ sau giảm giá**  
+Mỗi dòng dịch vụ: thành tiền gốc, % giảm (0 nếu không voucher) và thành tiền sau giảm.  
+*Output:* `invoices_id, name_service, quantity, thanh_tien, pct_giam, sau_giam`
+*/
+select  invoices_id,
+				name_service,
+				quantity,
+				ide.quantity * sd.price as thanh_tien,
+				coalesce(v.voucher_percent, 0) as pct_giam,
+				round((ide.quantity * sd.price) - ((ide.quantity * sd.price)*coalesce(v.voucher_percent, 0))/100, 2) as sau_giam
+				
+from invoice_details ide
+join service_details sd on sd.id = ide.servicedetails_id
+left join vouchers v on ide.vouchers_id = v.id
+ORDER BY ide.invoices_id;
+
+-- ## Module 6 — Subquery, IN, EXISTS, ANY/ALL
+/* 
+**Bài 71 — Phòng trên giá trung bình**  
+Các phòng có giá cao hơn giá trung bình toàn khách sạn.  
+*Output:* `room_name, price`
+*/
+select room_name, price
+from rooms
+where price > (select avg(price) from rooms)
+
+/* 
+**Bài 72 — Khách chi tiêu trên trung bình**  
+Khách có tổng tiền phòng (booking_histories.total_payment) cao hơn mức chi tiêu trung bình của một khách.  
+*Output:* `customer_id, tong_chi`
+*/
+select 
+	customer_id, 
+	sum(bh.total_payment) as tong_chi
+from bookings b
+join booking_histories bh on bh.booking_id = b.id
+group by customer_id
+having sum(total_payment) > 
+	(select avg(s)  
+	 from(
+	 	select sum(total_payment) as s
+	 	from bookings b2
+	 	join booking_histories bh2 on bh2.booking_id = b2.id
+	 	group by customer_id
+		)
+	)
+order by tong_chi desc
+
+/* 
+**Bài 73 — Nhân viên đã thu ngân**  
+Những nhân viên đã từng xuất ít nhất một hóa đơn (dùng EXISTS).  
+*Output:* `id, fullname`
+*/
+select e.id, e.fullname
+from employees e
+where exists (
+					select 1
+					from invoices i
+					where i.employee_id = e.id
+				)
+order by e.id
+
+/* 
+**Bài 74 — Nhân viên chưa bán được phòng**  
+Nhân viên đang làm việc nhưng chưa tạo booking nào (dùng NOT EXISTS).  
+*Output:* `id, fullname, role_id`
+*/
+select e.id, e.fullname, e.role_id
+from employees e
+where e.is_active = true  and not exists(
+								select 1
+								from bookings b
+								where b.employee_id = e.id
+							  )
+
+/* 
+**Bài 75 — Dịch vụ bán trong tháng 12/2025**  
+Mặt hàng nào đã được bán (có trong invoice_details) trong tháng 12/2025? Dùng IN.  
+*Output:* `service_code, name_service`
+*/
+select sde.service_code, sde.name_service
+from service_details sde
+where sde.id in (select i.servicedetails_id
+				 from invoice_details i
+				 where i.use_date::date >= date'2025-12-01' and i.use_date::date <= date'2025-12-31'
+				)
+/* 
+**Bài 76 — Booking gần nhất của mỗi khách (subquery tương quan)**  
+Với mỗi khách, lấy booking có ngày đặt gần nhất.  
+*Output:* `customer_id, booking_id, date_booking`
+*/
+select c.id, b.id as booking_id, b.date_booking
+from customers c
+join bookings b on c.id = b.customer_id
+where b.date_booking = (select max(b2.date_booking) from bookings b2 where b2.customer_id = c.id)
+ORDER BY b.customer_id;
+
+
+/* 
+**Bài 77 — So sánh giá từng phòng (scalar subquery)**  
+Mỗi phòng: số lần được đặt và chênh lệch giá so với giá trung bình.  
+*Output:* `room_name, price, so_lan_dat, chenh_lech_tb`
+*/
+select
+	room_name,
+	price,
+	(select count(*) from bookings b where b.room_id = r.id) as so_lan_dat,
+	(r.price - (select avg(r2.price) from rooms r2)) as chenh_lech_tb
+from rooms r
+ORDER BY so_lan_dat DESC, r.room_name
+
+/* 
+**Bài 78 — Năng suất bán phòng trung bình**  
+Trung bình mỗi nhân viên (có tạo booking) tạo bao nhiêu booking? Max là bao nhiêu? (dùng bảng dẫn xuất)  
+*Output:* `so_nv, booking_tb, booking_max`
+*/
+select count(bang_tam.id_nv), avg(s_bk) as booking_tb, max(s_bk) as booking_max
+from (select employee_id as id_nv, count(*) as s_bk
+	  from bookings 
+	  group by employee_id
+	) as bang_tam
+/* 
+**Bài 79 — Gợi ý upsell (ALL)**  
+Superior là hạng bán chạy. Để upsell, tìm các phòng có giá cao hơn TẤT CẢ phòng hạng Superior.  
+*Output:* `room_name, price`
+*/
+select r.room_name, r.price 
+from rooms r
+where r.price > (
+	select max(r2.price)
+	from rooms r2 
+	join room_types rt on r2.roomtype_id = rt.id
+	where rt.details like '%Superior%'
+)
+order by price desc
+
+/* 
+**Bài 80 — Khách quen chưa từng mất đồ**  
+Khách có từ 2 booking trở lên và chưa từng có món đồ thất lạc nào.  
+*Output:* `customer_id, so_booking`
+*/
+select customer_id, count(*) as so_booking
+from bookings b 
+where b.customer_id not in (
+	select li.customer_id
+	from lost_items li
+	where customer_id is not null
+)
+group by customer_id
+having count(*) >= 2
+
+-- ## Module 7 — CTE (WITH), Recursive CTE
+/* 
+**Bài 81 — Tổng doanh thu mỗi booking**  
+Với mỗi booking: tiền phòng, tiền dịch vụ (0 nếu không có), tổng cộng.  
+*Output:* `booking_id, tien_phong, tien_dv, tong`
+*/
+with dv as(
+	select i.booking_id, sum(ide.quantity*sde.price) as tien_dv
+	from invoices i 
+	join invoice_details ide on ide.invoices_id = i.id
+	join service_details sde on sde.id = ide.servicedetails_id
+	group by booking_id
+) 
+select bh.id, bh.total_payment as tien_phong, coalesce(tien_dv, 0) as tien_dv, (bh.total_payment + coalesce(tien_dv, 0)) as tong
+from booking_histories as bh
+left join dv on bh.booking_id = dv.booking_id
+order by tong desc
+
+/* 
+**Bài 82 — Doanh thu theo tháng**  
+Báo cáo tháng: doanh thu phòng (theo tháng trả phòng) và doanh thu dịch vụ (theo tháng sử dụng), ghép theo tháng.  
+*Output:* `thang, dt_phong, dt_dv, dt_tong`
+*/
+with phong as(
+	select date_trunc('month',bh.date_end) as thang, sum(total_payment) as dt_phong
+	from booking_histories bh
+	group by 1
+), dich_vu as(
+	select date_trunc('month', ide.use_date) as thang ,
+		sum(ide.quantity*sde.price) as dt_dv
+	from invoices i
+	join invoice_details ide on i.id = ide.invoices_id
+	join service_details sde on sde.id = ide.servicedetails_id
+	group by 1
+)
+select 
+	to_char(coalesce(p.thang, dv.thang), 'YYYY-MM') as thang,
+	coalesce(p.dt_phong, 0) as dt_phong,
+	coalesce(dv.dt_dv) as dt_dv,
+	(coalesce(p.dt_phong, 0) + coalesce(dv.dt_dv)) as dt_tong
+from phong p 
+full join dich_vu dv on p.thang = dv.thang
+order by 1
+
+/* 
+**Bài 83 — Top 10 khách & hạng đề xuất**  
+Top 10 khách theo tổng chi tiêu (phòng + dịch vụ) và đề xuất hạng: ≥ 20tr 'Kim cương', ≥ 10tr 'Vàng', còn lại 'Bạc'.  
+*Output:* `customer_id, fullname, tong_chi, hang_de_xuat`
+*/
+with phong as(
+	select b.customer_id as customer_id, sum(total_payment)  as tong_phong
+	from bookings b
+	join booking_histories bh on b.id = bh.booking_id
+	group by 1
+),dich_vu as(
+	select b.customer_id as customer_id, sum(ide.quantity*sde.price) as tong_dv
+	from bookings b
+	join invoices i on b.id = i.booking_id
+	join invoice_details ide on ide.invoices_id = i.id
+	join service_details sde on ide.servicedetails_id = sde.id
+	group by 1
+)
+select c.id as customer_id,
+		c.fullname,
+		(coalesce(p.tong_phong, 0) + coalesce(dv.tong_dv, 0)) as tong_chi,
+		case
+			when (coalesce(p.tong_phong, 0) + coalesce(dv.tong_dv, 0)) >= 20000000 then 'Kim cương'
+			when (coalesce(p.tong_phong, 0) + coalesce(dv.tong_dv, 0)) >= 10000000 then 'Vàng'
+			else 'Bạc'
+			end as hang_de_xuat
+		
+from customers c
+join phong p on p.customer_id = c.id
+full join dich_vu dv on dv.customer_id = p.customer_id
+order by tong_chi desc
+limit 10
+
+
+/* 
+**Bài 84 — Tỉ lệ lấp đầy theo tháng**  
+Occupancy tháng = số đêm phòng đã bán / (tổng số phòng × số ngày trong tháng). Tính cho năm 2025 (gán số đêm vào tháng nhận phòng).  
+*Output:* `thang, dem_ban, dem_kha_dung, occupancy_pct`
+*/
+with da_ban
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	
+				
+	
+
+
+	
 
 	
 
