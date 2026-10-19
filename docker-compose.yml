@@ -20,5 +20,21 @@ services:
       timeout: 3s
       retries: 20
 
+  dbt:
+    image: ghcr.io/dbt-labs/dbt-postgres:latest
+    container_name: hotel-dbt
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Trỏ đường dẫn để dbt đọc file profiles.yml trong cùng thư mục project
+      - DBT_PROFILES_DIR=/usr/app/dbt_hotel
+    volumes:
+      # Mount thư mục dbt_hotel từ máy thật vào container
+      - ./dbt_hotel:/usr/app/dbt_hotel
+    working_dir: /usr/app/dbt_hotel
+    # Ghi đè entrypoint mặc định để giữ container dbt luôn chạy ngầm
+    entrypoint: ["tail", "-f", "/dev/null"]
+
 volumes:
   pgdata:

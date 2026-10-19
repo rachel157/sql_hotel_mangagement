@@ -1,0 +1,12 @@
+dbt_hotel:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      threads: 4
+      host: localhost
+      port: 5432
+      user: hotel
+      password: hotel123
+      dbname: hotelmanagement
+      schema: public

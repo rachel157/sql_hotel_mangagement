@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull Postgres, tạo schema, seed data fake.
+# Pull Postgres & dbt, tạo schema, seed data fake.
 # Dùng: ./setup.sh          -> khởi tạo (giữ data nếu đã có)
 #       ./setup.sh --reset  -> xóa volume, tạo lại từ đầu
 set -euo pipefail
@@ -10,10 +10,10 @@ if [[ "${1:-}" == "--reset" ]]; then
   docker compose down -v
 fi
 
-echo ">> Pull image"
+echo ">> Pull image (Postgres & dbt)"
 docker compose pull
 
-echo ">> Start Postgres"
+echo ">> Start Postgres & dbt"
 docker compose up -d
 
 echo ">> Đợi DB sẵn sàng + chạy init scripts..."
@@ -33,4 +33,13 @@ ORDER BY table_name;
 SQL
 
 echo ""
-echo "Kết nối: postgresql://hotel:hotel123@localhost:5432/hotelmanagement"
+echo "Kết nối DB: postgresql://hotel:hotel123@localhost:5432/hotelmanagement"
+
+# KIỂM TRA KẾT NỐI DBT
+echo ""
+echo ">> Kiểm tra kết nối dbt tới Postgres..."
+docker exec -it hotel-dbt dbt debug || echo "Lưu ý: Lệnh dbt debug có thể báo lỗi nếu bạn chưa khởi tạo project (dbt init)."
+
+echo ""
+echo ">> HOÀN TẤT! Để sử dụng dbt, hãy chạy lệnh:"
+echo "   docker exec -it hotel-dbt bash"

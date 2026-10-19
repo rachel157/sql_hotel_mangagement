@@ -1,0 +1,20 @@
+
+version: 2
+
+sources:
+  - name: hotel
+    schema: public
+    description: "Các bảng dữ liệu gốc của hệ thống quản lý khách sạn"
+
+    tables:
+      - name: bookings
+      - name: customers
+      - name: rooms
+      - name: room_types
+      - name: room_status
+      - name: employees
+      - name: invoices
+      - name: invoice_details
+      - name: service_details
+      - name: payments
+      - name: vouchers
