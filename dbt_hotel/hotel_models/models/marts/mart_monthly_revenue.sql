@@ -11,8 +11,8 @@ with doanh_thu_phong as (
     doanh_thu_dv as (
         select 
             date_trunc('month', d.use_date)::date as month,
-            sum(coalesce(d.estimated_service_revenue, 0)) as monthly_total_service_revenue,
-            0::numeric as monthly_total_room_revenue
+            0::numeric as monthly_total_room_revenue,
+            sum(coalesce(d.estimated_service_revenue, 0)) as monthly_total_service_revenue
         from {{ref('mart_service_revenue')}} as d
         where d.use_date is not null
         group by 1
