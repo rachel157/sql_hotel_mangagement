@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: mart_service_revenue
+    columns:
+      - name: invoice_detail_id
+        data_tests:
+          - unique
+          - not_null
+
+      - name: invoice_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_invoices')
+                field: invoice_id
+
+      - name: service_detail_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_service_details')
+                field: service_detail_id
+
+      - name: estimated_service_revenue
+        data_tests:
+          - not_null

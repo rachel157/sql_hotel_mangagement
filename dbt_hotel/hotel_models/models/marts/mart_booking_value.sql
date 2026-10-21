@@ -1,3 +1,4 @@
+-- doanh thu phong theo tung booking
 select
     b.booking_id,
     b.customer_id,

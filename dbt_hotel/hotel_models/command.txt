@@ -1,0 +1,3 @@
+- đi vào môi trường trong python: .\.venv\Scripts\Activate.ps1 
+- kiểm tra lỗi các models : dbt parse --profiles-dir ..
+- chạy model : dbt run --profiles-dir .. --select +mart_monthly_revenue (dấu + nghĩa là chạy tất cả các models mà model mart_monthly_revenue phụ thuộc)

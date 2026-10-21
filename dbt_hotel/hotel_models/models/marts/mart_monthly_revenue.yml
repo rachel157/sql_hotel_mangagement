@@ -1,0 +1,22 @@
+
+version: 2
+
+models:
+  - name: mart_monthly_revenue
+    columns:
+      - name: month
+        data_tests:
+          - unique
+          - not_null
+
+      - name: monthly_total_room_revenue
+        data_tests:
+          - not_null
+
+      - name: monthly_total_service_revenue
+        data_tests:
+          - not_null
+
+      - name: revenue_month
+        data_tests:
+          - not_null

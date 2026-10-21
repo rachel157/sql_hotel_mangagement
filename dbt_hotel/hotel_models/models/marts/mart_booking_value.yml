@@ -1,0 +1,22 @@
+
+version: 2
+
+models:
+  - name: mart_booking_value
+    columns:
+      - name: booking_id
+        data_tests:
+          - unique
+          - not_null
+
+      - name: room_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_rooms')
+                field: room_id
+
+      - name: estimated_room_revenue
+        data_tests:
+          - not_null
