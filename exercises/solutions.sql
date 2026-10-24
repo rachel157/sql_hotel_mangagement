@@ -841,8 +841,7 @@ FROM employees e
 LEFT JOIN bk ON bk.employee_id = e.id
 LEFT JOIN hd ON hd.employee_id = e.id
 LEFT JOIN dl ON dl.employee_id = e.id
-ORDER BY COALESCE(bk.n, 0) + COALESCE(hd.n, 0) + COALESCE(dl.n, 0) DESC;
-
+order by id
 -- ### Bài 87 — Khách "ngủ đông"
 -- Đề: Khách có lần nhận phòng gần nhất cách mốc 2026-06-30 hơn 180 ngày → cần chiến dịch kéo lại.
 -- Output: customer_id, fullname, lan_cuoi, so_ngay_vang

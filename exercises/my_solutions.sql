@@ -1000,7 +1000,80 @@ limit 10
 Occupancy tháng = số đêm phòng đã bán / (tổng số phòng × số ngày trong tháng). Tính cho năm 2025 (gán số đêm vào tháng nhận phòng).  
 *Output:* `thang, dem_ban, dem_kha_dung, occupancy_pct`
 */
-with da_ban
+with dem_da_ban as(
+	select 
+		date_trunc('month', b.date_start) as thang,
+		sum(b.date_end::date - b.date_start::date) as so_dem
+	from bookings b
+	where b.date_start::date >= date'2025-01-01' and b.date_end::date < date'2026-01-01'
+	group by 1
+),
+tong_so_phong as(
+	select
+		count(*) as tong from rooms 
+)
+select 
+	to_char(d.thang, 'YYYY-MM') as thang,
+	d.so_dem as dem_ban,
+	(extract(day from d.thang + interval '1 month - 1 day') * d.so_dem ) as dem_kha_dung,
+	round(100 * d.so_dem / (p.tong * extract(day from d.thang + interval '1 month - 1 day')), 2) as occupancy_pct
+from dem_da_ban d
+cross join tong_so_phong p
+order by thang asc
+
+-- ### Bài 86 — KPI nhân viên
+-- Đề: Mỗi nhân viên: số booking đã tạo, số hóa đơn đã xuất, số đồ thất lạc đã nhặt (0 nếu không có).
+-- Output: id, fullname, so_booking, so_hoa_don, so_do_nhat
+with employees_booking as(
+	select 
+		e.id,
+		e.fullname,
+	    count(b.id) as so_booking,
+	    0::numeric as so_hoa_don,
+	    0::numeric as so_do_nhat
+	from employees e
+	left join bookings b on e.id = b.employee_id 
+	group by e.id 
+),employees_invoice as(
+	select 
+		e.id,
+		e.fullname,
+	    0::numeric as so_booking,
+	    count(i.id ) as so_hoa_don,
+	    0::numeric as so_do_nhat
+	from employees e
+	left join invoices i on e.id = i.employee_id 
+	group by e.id 
+),employees_lost_item as(
+	select 
+		e.id,
+		e.fullname,
+	    0::numeric as so_booking,
+	    0::numeric as so_hoa_don,
+	    count(li.id) as so_do_nhat
+	from employees e
+	left join lost_items li on e.id = li.employee_id 
+	group by e.id 
+), tong_hop as(
+	select * from employees_booking 
+	union all
+	select * from employees_invoice
+	union all
+	select * from employees_lost_item 
+)
+select 
+	id,
+	fullname,
+	sum(coalesce(so_booking, 0)) as so_booking,
+	sum(coalesce(so_hoa_don, 0)) as so_hoa_don,
+	sum(coalesce(so_do_nhat, 0)) as so_do_nhat
+from tong_hop
+group by id, fullname 
+order by id
+
+-- ### Bài 87 — Khách "ngủ đông"
+-- Đề: Khách có lần nhận phòng gần nhất cách mốc 2026-06-30 hơn 180 ngày → cần chiến dịch kéo lại.
+-- Output: customer_id, fullname, lan_cuoi, so_ngay_vang
 
 
 
