@@ -1074,6 +1074,28 @@ order by id
 -- ### Bài 87 — Khách "ngủ đông"
 -- Đề: Khách có lần nhận phòng gần nhất cách mốc 2026-06-30 hơn 180 ngày → cần chiến dịch kéo lại.
 -- Output: customer_id, fullname, lan_cuoi, so_ngay_vang
+with ngay_gan_nhat as(
+	select 
+		b.customer_id,
+		max(b.date_start) as ngay_gan_nhat
+	from bookings b  
+	group by 1
+)
+select 
+	c.id as customer_id,
+	c.fullname,
+	n.ngay_gan_nhat as lan_cuoi,
+	(date'2026-06-30' - n.ngay_gan_nhat::date)::int as so_ngay_vang
+from ngay_gan_nhat n 
+join customers c on n.customer_id = c.id
+where (date'2026-06-30' - n.ngay_gan_nhat::date)::int > 180
+order by so_ngay_vang desc
+
+-- ### Bài 88 — Biên lợi nhuận mặt hàng
+-- Đề: Giá vốn = giá nhập bình quân gia quyền. So với giá bán hiện tại, tính lãi gộp/đơn vị và % biên lợi nhuận; mặt hàng bán lỗ đưa lên đầu.
+-- Output: name_service, gia_von, gia_ban, lai_gop, bien_pct
+
+
 
 
 
