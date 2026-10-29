@@ -1094,6 +1094,128 @@ order by so_ngay_vang desc
 -- ### Bài 88 — Biên lợi nhuận mặt hàng
 -- Đề: Giá vốn = giá nhập bình quân gia quyền. So với giá bán hiện tại, tính lãi gộp/đơn vị và % biên lợi nhuận; mặt hàng bán lỗ đưa lên đầu.
 -- Output: name_service, gia_von, gia_ban, lai_gop, bien_pct
+with gia_von as(
+	select ir.servicedetails_id  , sum(quantity*price)/sum(ir.quantity) as gia_von
+	from inventory_receiving ir 
+	group by 1
+)
+select 
+	sd.name_service,
+	round(gv.gia_von,1) as gia_von,
+	sd.price as gia_ban,
+	round(sd.price - gv.gia_von, 1) as lai_gop,
+	round((100*(sd.price - gv.gia_von))/sd.price , 1) as bien_pct
+from service_details sd 
+join gia_von gv on gv.servicedetails_id = sd.id
+order by bien_pct asc
+
+-- ## Module 8 — UNION, INTERSECT, EXCEPT
+
+-- ### Bài 89 — Danh bạ chung
+-- Đề: Tổng đài cần một danh bạ gồm cả nhân viên và khách hàng: họ tên, SĐT, email, loại liên hệ.
+-- Output: fullname, phone, email, loai
+select fullname, phone, email, 'Nhân Viên' as loai_lien_he
+from employees
+union all
+select fullname, phone, email, 'Khách Hàng' as loai_lien_he
+from customers c
+order by fullname
+
+-- ### Bài 90 — Thẻ kho
+-- Đề: Lập thẻ kho: gộp phiếu nhập (số dương) và phiếu xuất (số âm) thành một nhật ký, sắp theo mặt hàng và thời gian.
+-- Output: servicedetails_id, thoi_gian, loai, so_luong
+select ir.servicedetails_id, ir.in_date as thoi_gian, 'Nhập' as loai, ir.quantity as so_luong
+from inventory_receiving ir
+union all
+select id.servicedetails_id, id.out_date, 'Xuất' as loai, -id.quantity as so_luong
+from inventory_delivery id 
+order by servicedetails_id, thoi_gian
+
+-- ### Bài 91 — Khách vừa ở vừa mất đồ (INTERSECT)
+-- Đề: Những customer_id vừa có booking vừa có đồ thất lạc.
+-- Output: customer_id
+select customer_id
+from bookings
+intersect
+select customer_id
+from lost_items li 
+order by customer_id 
+
+-- ### Bài 92 — Hàng nhập về nhưng chưa bán (EXCEPT)
+-- Đề: Mặt hàng đã nhập kho nhưng chưa bán được lần nào.
+-- Output: servicedetails_id
+select servicedetails_id 
+from inventory_receiving 
+except
+select servicedetails_id 
+from invoice_details id 
+order by 1
+
+-- ### Bài 93 — Doanh thu dịch vụ theo phương thức + dòng tổng
+-- Đề: Doanh thu dịch vụ theo phương thức thanh toán, cuối bảng có dòng 'TỔNG CỘNG' (dùng UNION ALL).
+-- Output: phuong_thuc, doanh_thu
+with t as(
+	select split_part(p.payment_details, '-', 1) as phuong_thuc, sum(id.quantity*sd.price) as doanh_thu
+	from invoices i 
+	join invoice_details id on id.invoices_id  = i.id 
+	join service_details sd on id.servicedetails_id = sd.id
+	join payments p on p.id = i.payment_id 
+	group by 1
+	order by doanh_thu desc
+)
+select * from t
+union all
+select 'TỔNG CỘNG', sum(doanh_thu)
+from t
+
+-- ## Module 9 — Báo cáo tổng hợp, pivot bằng CASE, ROLLUP
+
+-- ### Bài 94 — Pivot booking theo quý
+-- Đề: Số booking năm 2025 theo phân khúc giá phòng (Bình dân < 1,5tr / Trung cấp < 3tr / Cao cấp), mỗi quý là một cột.
+-- Output: phan_khuc, q1, q2, q3, q4, ca_nam
+select
+	case
+		when price < 1500000 then 'Bình dân'
+		when price < 3000000 then 'Trung cấp'	
+		else 'Cao cấp'
+		end as phan_khuc,
+	count (*) filter(where extract(quarter from b.date_start) = 1) as q1,
+	count (*) filter(where extract(quarter from b.date_start) = 2) as q2,
+	count (*) filter(where extract(quarter from b.date_start) = 3) as q3,
+	count (*) filter(where extract(quarter from b.date_start) = 4) as q4,
+	count (*) as ca_nam
+from bookings b
+join rooms r on b.room_id= r.id
+where b.date_start > '2025-01-01' and date_start < '2026-01-01'
+group by 1
+order by 1
+
+-- ### Bài 95 — Doanh thu dịch vụ có subtotal (ROLLUP)
+-- Đề: Doanh thu dịch vụ theo đơn vị tính → mặt hàng, có dòng tổng phụ mỗi đơn vị và dòng tổng toàn bộ.
+-- Output: unit, name_service, doanh_thu
+select 
+	coalesce(sd.unit, '==TỔNG ALL==]') as unit,
+	coalesce(sd.name_service, '==TỔNG ' || upper(sd.unit) || '==') as name_service,
+	sum(id.quantity*price)
+from invoice_details id 
+join service_details sd on id.servicedetails_id = sd.id
+group by rollup (sd.unit, sd.name_service)
+order by sd.unit nulls last, sd.name_service nulls last
+
+-- ### Bài 96 — Báo cáo thu ngân
+-- Đề: Mỗi thu ngân: số hóa đơn thu tiền mặt, số hóa đơn không dùng tiền mặt, % không tiền mặt.
+-- Output: thu_ngan, hd_tien_mat, hd_khong_tien_mat, pct_khong_tien_mat
+select
+	e.fullname as thu_ngan,
+	sum(case when p.payment_details  like 'Tiền mặt%' then 1 else 0 end) as hd_tien_mat,
+	sum(case when p.payment_details not like 'Tiền mặt%' then 1 else 0 end) as hd_khong_tien_mat,
+	round(100*(sum(case when p.payment_details not like 'Tiền mặt%' then 1 else 0 end))/count(*)) as pct_khong_tien_mat
+from invoices i 
+join payments p on i.payment_id = p.id
+join employees e on e.id = i.employee_id 
+group by 1
+order by count(*) desc
+
 
 
 
