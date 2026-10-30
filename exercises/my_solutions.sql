@@ -1207,9 +1207,9 @@ order by sd.unit nulls last, sd.name_service nulls last
 -- Output: thu_ngan, hd_tien_mat, hd_khong_tien_mat, pct_khong_tien_mat
 select
 	e.fullname as thu_ngan,
-	sum(case when p.payment_details  like 'Tiền mặt%' then 1 else 0 end) as hd_tien_mat,
-	sum(case when p.payment_details not like 'Tiền mặt%' then 1 else 0 end) as hd_khong_tien_mat,
-	round(100*(sum(case when p.payment_details not like 'Tiền mặt%' then 1 else 0 end))/count(*)) as pct_khong_tien_mat
+	sum(case when split_part(p.payment_details, '-', 1)  like 'Tiền mặt ' then 1 else 0 end) as hd_tien_mat,
+	sum(case when split_part(p.payment_details, '-', 1) not like 'Tiền mặt ' then 1 else 0 end) as hd_khong_tien_mat,
+	round(100*(sum(case when split_part(p.payment_details, '-', 1) not like 'Tiền mặt ' then 1 else 0 end))/count(*)) as pct_khong_tien_mat
 from invoices i 
 join payments p on i.payment_id = p.id
 join employees e on e.id = i.employee_id 
