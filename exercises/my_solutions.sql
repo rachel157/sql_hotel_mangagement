@@ -1216,7 +1216,38 @@ join employees e on e.id = i.employee_id
 group by 1
 order by count(*) desc
 
-
+-- ### Bài 97 — Hiệu quả voucher
+-- Đề: Mỗi voucher đã được dùng: số lần áp vào booking, số dòng dịch vụ áp dụng, tổng tiền dịch vụ được giảm.
+-- Output: voucher_code, voucher_percent, lan_dung_booking, lan_dung_dv, tien_giam_dv
+WITH b AS (
+    SELECT 
+        vouchers_id,
+        COUNT(*) AS lan_dung_booking
+    FROM bookings 
+    WHERE vouchers_id IS NOT NULL
+    GROUP BY vouchers_id
+), 
+dv AS (
+    SELECT 
+        id.vouchers_id,
+        COUNT(*) AS lan_dung_dv,
+        SUM(sd.price * v.voucher_percent*quantity / 100.0) AS tien_giam_dv
+    FROM invoice_details id
+    JOIN service_details sd ON id.servicedetails_id = sd.id
+    JOIN vouchers v ON v.id = id.vouchers_id 
+    GROUP BY id.vouchers_id
+)
+SELECT 
+    v.voucher_code,
+    v.voucher_percent,
+    COALESCE(b.lan_dung_booking, 0) AS lan_dung_booking,
+    COALESCE(dv.lan_dung_dv, 0) AS lan_dung_dv,
+    COALESCE(dv.tien_giam_dv, 0) AS tien_giam_dv
+FROM vouchers v
+LEFT JOIN b ON v.id = b.vouchers_id
+LEFT JOIN dv ON v.id = dv.vouchers_id 
+WHERE b.vouchers_id IS NOT NULL OR dv.vouchers_id IS NOT null
+ORDER BY tien_giam_dv DESC
 
 
 
